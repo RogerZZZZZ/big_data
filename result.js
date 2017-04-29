@@ -1,6 +1,7 @@
 var mysql = require('mysql');
 var moment = require('moment');
 var fs = require('fs');
+var outliers = require('outliers')
 // var MyStream = require('json2csv-stream');
 
 // create the transform stream
@@ -24,7 +25,14 @@ let testData = {
     // owner: 1
 }
 
-let query = 'SELECT Date, House_id, Price from combine where `Area_type` = ?';
+let query = 'SELECT Date, House_id, Price from combine where (`Area_type` = 1';
+for(let i = 2; i <= 16; i++){
+    query += ' OR `Area_type` = ' + i;
+}
+
+query += ') And (`PPTY_Type` = 2 OR `PPTY_Type` = 4 OR `PPTY_Type` = 13)';
+
+// let query = 'SELECT Date, House_id, Price from combine where `Area_type` = ?';
 
 let [q,
     p] = filter(testData, query);
@@ -32,14 +40,17 @@ let startTime = new Date();
 
 console.log(q, p);
 
-connection.query(q + ' ORDER BY Date', p, function(error, results, fields) {
+// connection.query(q + ' ORDER BY Date', p, function(error, results, fields) {
+    connection.query(q + ' ORDER BY Date', function(error, results, fields) {
     if (error)
         throw error;
 
     // console.log('The solution is: ', results);
     // dateTrans('2014-1-1', results[0].DATA_DATE);
+    console.log(results.length);
+    results = results.filter(outliers('Price'));
+    console.log(results.length);
     let len = results.length;
-    console.log(len);
     let beginTime = new Date('2013-12-31');
     let queryEndTime = new Date();
     console.log('Time spending on querying:' + (queryEndTime - startTime) / (1000) + 'seconds');
