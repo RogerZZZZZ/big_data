@@ -56,10 +56,11 @@ let innerDataClean = (connection, data, returnFunc) => {
         if (error)
             throw error;
 
-        if(data.outlier){
+        if(data.outlier === 'true'){
+            // console.log("obj");
             results = results.filter(outliers('Price'));
         }
-        log(results.length);
+        console.log(results.length);
         let len = results.length;
         let beginTime = new Date('2013-12-31');
         let queryEndTime = new Date();
