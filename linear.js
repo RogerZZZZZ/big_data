@@ -21,39 +21,30 @@ let houseType = [
 ]
 
 let startTime = new Date();
+var connection = mysql.createConnection({host: 'localhost', user: 'root', password: '', database: 'bigdata'});
+connection.connect();
 
-let dataClean = (connection, req, res, next) => {
-    console.log("request count: " + ++global.count);
-    let query = req.query,
-        outlier = query.outlier,
-        area = query.area,
-        ppty = query.ppty,
-        period = query.period;
-    let data = {
-        outlier: outlier,
-        area: area,
-        ppty: ppty,
-        period: period
-    }
-    innerDataClean(connection, data, (data) => {res.json(data)});
-}
+let areaSize = cityDistrict.length;
+let typeSize = houseType.length;
 
-let innerDataClean = (connection, data, returnFunc) => {
+let startDate = new Date('2013-9-1');
+let startMonth = startDate.getMonth();
+let startYear = startDate.getYear();
+let beginTime = new Date('2013-9-1');
 
+var innerDataClean = (data, areaType, houseType) => {
     let query = 'SELECT Date, House_id, Price from combine where' ;
     let [q, p] = filter(data, query);
-    log(q);
 
     connection.query(q + ' ORDER BY Date', p, function(error, results, fields) {
         if (error)
             throw error;
 
-        if(data.outlier === 'true'){
+        if(data.outlier == 'true' || data.outlier === true){
             results = results.filter(outliers('Price'));
         }
         console.log(results.length, p);
         let len = results.length;
-        let beginTime = new Date('2013-9-1');
         let queryEndTime = new Date();
         log('Time spending on querying:' + (queryEndTime - startTime) / (1000) + 'seconds');
 
@@ -82,83 +73,54 @@ let innerDataClean = (connection, data, returnFunc) => {
         }
 
         let dataIndex = 0;
-        let period = parseInt(data.period);
-        let resLen = Math.ceil((3*365 + 122) / period);
         let res = [];
 
-        for (let i = 1; i < resLen; i++){
-            let tmp = 0;
-            let count = 0;
-            let et = moment(beginTime).add(i*period, 'days');
-            for(let j = dataIndex; j < len; j++){
-                let tmpData = results[j];
-                if(moment(tmpData.Date).isBefore(et)){
-                    count++;
-                    tmp += tmpData.Price;
-                }else{
-                    break;
-                }
+        for (let i = 1; i < len; i++){
+            let tmpData = results[i];
+            let tmpDate = new Date(tmpData.Date);
+            let dateIndex;
+            let tmpMonth = tmpDate.getMonth(),
+                tmpYear = tmpDate.getYear();
+            if(tmpYear === startYear){
+                dateIndex = tmpMonth - startMonth;
+            }else{
+                dateIndex = (tmpYear - startYear - 1)*12 + tmpMonth + 12 - startMonth;
             }
-            let tmpRes = count !== 0 ? tmp/count: 0;
-            res.push(tmpRes);
-            dataIndex += count;
-        }
-
-        let lastDataIndex;
-        let lastDate = null;
-
-        for(let i = 0; i < resLen; i++){
-            if(res[i] === 0){
-                if(i === 0){
-                    let t = i;
-                    while(res[++t] === 0);
-                    res[0] = res[t];
-                }else{
-                    let after = i;
-                    let c = 1;
-                    while(res[++after] === 0){
-                        c++;
-                    }
-                    if(after >= resLen - 1){
-                        lastDataIndex = i;
-                        lastDate = moment(beginTime).add(i*period, 'days');
-                        break;
-                    }
-                    let k = (res[after]-res[i-1])/c;
-                    for(let j = 0; j < c; j++){
-                        res[i+j] = res[i-1] + j * k;
-                    }
-                }
+            let tmp = {
+                date: dateIndex,
+                price: tmpData.Price
             }
+            res.push(tmp);
         }
-
-        res = res.splice(0,lastDataIndex);
-        // console.log(resLen);
-        log(res);
-        log(resLen);
-        let jsonResult = {
-            data: res,
-            endTime: lastDate === null ? moment(beginTime).add(resLen*period, 'days') : lastDate
-        };
-        returnFunc(jsonResult);
 
         //write to the file
-        // let writeStr = '';
-        // for(let item in res){
-        //     writeStr += res[item];
-        //     if(item !== resLen - 1){
-        //         writeStr += '\n';
-        //     }
-        // }
-        //
-        // fs.writeFile("./out.csv", writeStr, function(err) {
-        //     if(err) {
-        //         return log(err);
-        //     }
-        //     console.log('Time spending on handling data:' + (endTime - queryEndTime) / (1000) + 'seconds');
-        // });
+        let writeStr = '';
+        for(let item in res){
+            writeStr += res[item].date + ' ' + res[item].price;
+            if(item !== len - 1){
+                writeStr += '\n';
+            }
+        }
+
+        fs.writeFile("./linear/"+areaType+"-"+houseType+".csv", writeStr, function(err) {
+            if(err) {
+                return log(err);
+            }
+        });
     });
 
+}
+
+for(let k = 1; k <= 49; k++){
+    for(let o = 0; o < typeSize; o++){
+        let data = {
+            outlier: "true",
+            area: k,
+            ppty: o,
+            period: 5
+        }
+        innerDataClean(data, k, o);
+    }
 }
 
 function log(obj){
@@ -215,5 +177,3 @@ function filter(data, query) {
 
     return [query, para];
 }
-
-exports.dataClean = dataClean;

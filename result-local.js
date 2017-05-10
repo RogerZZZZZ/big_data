@@ -21,28 +21,15 @@ let houseType = [
 ]
 
 let startTime = new Date();
+var connection = mysql.createConnection({host: 'localhost', user: 'root', password: '', database: 'bigdata'});
+connection.connect();
 
-let dataClean = (connection, req, res, next) => {
-    console.log("request count: " + ++global.count);
-    let query = req.query,
-        outlier = query.outlier,
-        area = query.area,
-        ppty = query.ppty,
-        period = query.period;
-    let data = {
-        outlier: outlier,
-        area: area,
-        ppty: ppty,
-        period: period
-    }
-    innerDataClean(connection, data, (data) => {res.json(data)});
-}
+let areaSize = cityDistrict.length;
+let typeSize = houseType.length;
 
-let innerDataClean = (connection, data, returnFunc) => {
-
+var innerDataClean = (data, areaType, houseType) => {
     let query = 'SELECT Date, House_id, Price from combine where' ;
     let [q, p] = filter(data, query);
-    log(q);
 
     connection.query(q + ' ORDER BY Date', p, function(error, results, fields) {
         if (error)
@@ -133,32 +120,39 @@ let innerDataClean = (connection, data, returnFunc) => {
         }
 
         res = res.splice(0,lastDataIndex);
-        // console.log(resLen);
         log(res);
         log(resLen);
         let jsonResult = {
             data: res,
             endTime: lastDate === null ? moment(beginTime).add(resLen*period, 'days') : lastDate
         };
-        returnFunc(jsonResult);
 
-        //write to the file
-        // let writeStr = '';
-        // for(let item in res){
-        //     writeStr += res[item];
-        //     if(item !== resLen - 1){
-        //         writeStr += '\n';
-        //     }
-        // }
-        //
-        // fs.writeFile("./out.csv", writeStr, function(err) {
-        //     if(err) {
-        //         return log(err);
-        //     }
-        //     console.log('Time spending on handling data:' + (endTime - queryEndTime) / (1000) + 'seconds');
-        // });
+        // write to the file
+        fs.writeFile("./"+areaType+"-"+houseType+".json", JSON.stringify(jsonResult), function(err) {
+            if(err) {
+                return log(err);
+            }
+        });
     });
 
+}
+// let data = {
+//         outlier: "false",
+//         area: 2,
+//         ppty: 0,
+//         period: 5
+//     }
+// innerDataClean(data, 2, 0);
+for(let k = 1; k <= 49; k++){
+    for(let o = 0; o < typeSize; o++){
+        let data = {
+            outlier: "true",
+            area: k,
+            ppty: o,
+            period: 5
+        }
+        innerDataClean(data, k, o);
+    }
 }
 
 function log(obj){
@@ -215,5 +209,3 @@ function filter(data, query) {
 
     return [query, para];
 }
-
-exports.dataClean = dataClean;
